@@ -151,7 +151,7 @@ fn list() -> Result {
             if i.serial.is_empty() { "-" } else { &i.serial },
             i.vendor_id,
             i.product_id,
-            i.report_id,
+            d.report_id(),
             i.output_report_len,
         );
     }

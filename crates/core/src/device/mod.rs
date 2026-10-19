@@ -97,6 +97,9 @@ pub struct Model {
     pub family: Family,
     /// Not tested on real hardware yet.
     pub experimental: bool,
+    /// Report ID the display listens on, for devices that declare several output reports and
+    /// list another one first. `None` uses the one found during enumeration.
+    pub report_id_override: Option<u8>,
 }
 
 const fn deepcool(product_id: u16, name: &'static str, family: Family) -> Model {
@@ -106,6 +109,7 @@ const fn deepcool(product_id: u16, name: &'static str, family: Family) -> Model 
         name,
         family,
         experimental: !matches!(family, Family::AkSeries),
+        report_id_override: None,
     }
 }
 
@@ -127,7 +131,12 @@ pub const MODELS: &[Model] = &[
     deepcool(0x0013, "CH170 DIGITAL", Family::ChGen2),
     deepcool(0x0015, "CH360 DIGITAL", Family::ChSeries),
     deepcool(0x0016, "CH270 DIGITAL", Family::ChGen2),
-    deepcool(0x001B, "CH690 DIGITAL", Family::ChGen2),
+    // Declares output reports 16, 2, 3 and 4. Windows lists 2 first, which the display ignores.
+    Model {
+        experimental: false,
+        report_id_override: Some(16),
+        ..deepcool(0x001B, "CH690 DIGITAL", Family::ChGen2)
+    },
     deepcool(0x001F, "ASSASSIN IV VC VISION", Family::LqSeries),
     deepcool(0x0029, "AK620 G2 DIGITAL NYX", Family::LqSeries),
     deepcool(0x002A, "AK700 DIGITAL NYX", Family::LqSeries),
@@ -139,6 +148,7 @@ pub const MODELS: &[Model] = &[
         name: "CH510 MESH DIGITAL",
         family: Family::Ch510,
         experimental: true,
+        report_id_override: None,
     },
 ];
 
@@ -159,6 +169,16 @@ pub struct Detected {
     pub info: DeviceInfo,
     /// `None` for DeepCool devices this version does not support yet.
     pub model: Option<&'static Model>,
+}
+
+impl Detected {
+    /// The report ID to write to: the model's own when it has one, otherwise the one found
+    /// during enumeration.
+    pub fn report_id(&self) -> u8 {
+        self.model
+            .and_then(|m| m.report_id_override)
+            .unwrap_or(self.info.report_id)
+    }
 }
 
 /// Lists every DeepCool collection with an output report, supported or not. Other devices of
@@ -313,7 +333,7 @@ impl Cooler {
             .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "unsupported device"))?;
         Ok(Self {
             model,
-            report_id: detected.info.report_id,
+            report_id: detected.report_id(),
             serial: detected.info.serial.clone(),
             path: detected.info.path.clone(),
             hid: HidDevice::open(&detected.info)?,
@@ -458,6 +478,30 @@ mod tests {
         assert_eq!(model(DEEPCOOL_VID, 0x1100), None);
         assert!(!model(DEEPCOOL_VID, 1).unwrap().experimental);
         assert!(model(DEEPCOOL_VID, 0x10).unwrap().experimental);
+        assert!(!model(DEEPCOOL_VID, 0x1B).unwrap().experimental);
+    }
+
+    #[test]
+    fn model_report_id_overrides_the_detected_one() {
+        let detected = |product_id| Detected {
+            info: DeviceInfo {
+                path: String::new(),
+                vendor_id: DEEPCOOL_VID,
+                product_id,
+                product: String::new(),
+                serial: String::new(),
+                usage_page: 0,
+                usage: 0,
+                output_report_len: 64,
+                report_id: 2,
+            },
+            model: model(DEEPCOOL_VID, product_id),
+        };
+        // The CH690 DIGITAL lists report 2 first but listens on 16.
+        assert_eq!(detected(0x1B).report_id(), 16);
+        // Other models and unsupported devices keep the detected one.
+        assert_eq!(detected(0x13).report_id(), 2);
+        assert_eq!(detected(0x99).report_id(), 2);
     }
 
     #[test]

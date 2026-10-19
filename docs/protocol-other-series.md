@@ -1,8 +1,8 @@
 # Other DeepCool display protocols
 
 Protocols of the displays supported besides the AK series ([protocol-ak-series.md](protocol-ak-series.md)).
-None of them has been tested on real hardware by CoolerCast yet: they are implemented from the
-community mapping tables listed under [Sources](#sources). Reports from owners are welcome.
+They are implemented from the community mapping tables listed under [Sources](#sources). Only the
+CH690 DIGITAL has been tested on real hardware so far. Reports from owners are welcome.
 
 | USB ID | Model | Family |
 |---|---|---|
@@ -127,6 +127,11 @@ A framed report like the [framed reports](#framed-reports-ld-pro-and-lq), with a
 CoolerCast sends page `2` or `4` depending on the `source` setting (`auto` alternates them) and
 fills both the CPU and the GPU fields. The fan and PSU fields are sent as 0: there is no
 vendor-neutral way to read them.
+
+The CH690 DIGITAL declares four output reports, with IDs `16`, `2`, `3` and `4`, and Windows lists
+`2` first. The display shows frames sent with report ID `16` and ignores them with ID `2` (`3`
+and `4` are untested). Tested on a CH690 DIGITAL with report ID `16`: both the CPU page (`2`) and
+the GPU page (`4`) show their values.
 
 ## CH510 MESH DIGITAL
 
